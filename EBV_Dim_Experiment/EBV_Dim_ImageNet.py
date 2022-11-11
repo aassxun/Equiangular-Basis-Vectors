@@ -35,7 +35,7 @@ CFG = {
     'seed': 42,  # 719,42,68
     'resize_size': 256, #val
     'crop_size': 224, #train
-    'epochs': 105,#20+40+80+160+320=620
+    'epochs': 105, #100+5
     'warmup_epochs': 5,
     'train_bs': 1024,
     'valid_bs': 1024,
@@ -49,7 +49,7 @@ CFG = {
     'num_classes': 100,
     'model_name': 'resnet50', 
     'pkl_pth': 'eq_100_1000.pkl',
-    'info': 'EBV_ResNet_dim100_SGD_epoch105',
+    'info': 'EBV_ResNet_dim100_SGD_epoch105', #log name
     'ifval': False,
     'model_path': 'EBV_ResNet_dim100_SGD_epoch105.pth'
 }
@@ -77,24 +77,6 @@ def get_img(path):
     img = Image.open(path).convert('RGB')
     return img
 
-def rand_bbox(size, lam):
-    W = size[2]
-    H = size[3]
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int32(W * cut_rat)
-    cut_h = np.int32(H * cut_rat)
-
-    # uniform
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2
-
 import pickle as pkl
 class ImageNetDataset(Dataset):
     def __init__(self, root, part='train', transforms=None):
@@ -120,15 +102,6 @@ class ImageNetDataset(Dataset):
             image = self.transforms(image)
             # image = self.transforms(image=image)['image']
         return image, self.labels[index]
-
-
-# def get_valid_transforms():
-#     return Compose([
-#         Resize(CFG['img_size'], CFG['img_size'], interpolation=cv2.INTER_CUBIC),
-#         Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
-#         ToTensorV2(p=1.0),
-#     ], p=1.)
-
 
 def train_one_epoch(epoch, model, loss_fn, optimizer, train_loader, d, device, scheduler=None, schd_batch_update=False):
     model.train()
@@ -233,30 +206,6 @@ def test_one_epoch(model, val_loader, d, device):
     return ans
 
 
-# from typing import List, Optional, Tuple, Union
-def split_normalization_params(model, norm_classes=None):
-    # Adapted from https://github.com/facebookresearch/ClassyVision/blob/659d7f78/classy_vision/generic/util.py#L501
-    if not norm_classes:
-        norm_classes = [nn.modules.batchnorm._BatchNorm, nn.LayerNorm, nn.GroupNorm]
-
-    for t in norm_classes:
-        if not issubclass(t, nn.Module):
-            raise ValueError(f"Class {t} is not a subclass of nn.Module.")
-
-    classes = tuple(norm_classes)
-
-    norm_params = []
-    other_params = []
-    for module in model.modules():
-        if next(module.children(), None):
-            other_params.extend(p for p in module.parameters(recurse=False) if p.requires_grad)
-        elif isinstance(module, classes):
-            norm_params.extend(p for p in module.parameters() if p.requires_grad)
-        else:
-            other_params.extend(p for p in module.parameters() if p.requires_grad)
-    return norm_params, other_params
-
-
 class Net(nn.Module):
     def __init__(self, model_name="resnet50"):
         super(Net, self).__init__()
@@ -268,27 +217,11 @@ class Net(nn.Module):
         return x
 
 
-class CosineSimilarity(nn.Module):
-    __constants__ = ['dim', 'eps']
-    dim: int
-    eps: float
-
-    def __init__(self, dim: int = 1, eps: float = 1e-8) -> None:
-        super(CosineSimilarity, self).__init__()
-        self.dim = dim
-        self.eps = eps
-
-    def forward(self, x1, x2):
-        return 1. - F.cosine_similarity(x1, x2, self.dim, self.eps).mean()
-
-
-
 if __name__ == '__main__':
         
     seed_everything(CFG['seed'])
 
     device = torch.device(CFG['device'])
-    # model = timm.create_model(model_name='resnet50', num_classes=CFG['num_classes'], pretrained=True)
 
     model = Net()
     model = nn.DataParallel(model)
@@ -321,18 +254,12 @@ if __name__ == '__main__':
 
     scaler = GradScaler()
 
-    # param_groups = split_normalization_params(model)
-    # wd_groups = [0.0, CFG['weight_decay']]
-    # parameters = [{"params": p, "weight_decay": w} for p, w in zip(param_groups, wd_groups) if p]
     optimizer = torch.optim.SGD(model.parameters(), lr=CFG['lr'], weight_decay=CFG['weight_decay'], momentum=0.9)
     # optimizer = torch.optim.Adam(parameters, lr=CFG['lr'], weight_decay=CFG['weight_decay'])
     # optimizer = torch.optim.AdamW(model.parameters(), lr=CFG['lr'], weight_decay=CFG['weight_decay'])
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=CFG['T_0'], T_mult=2,
-    #                                                                         eta_min=CFG['min_lr'], last_epoch=-1)
-    # scheduler = SchedulerCosineDecayWarmup(optimizer, CFG['lr'], 5, CFG['epochs'])
     
     main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=CFG['epochs'] - CFG['warmup_epochs']#, eta_min = 1e-5
+        optimizer, T_max=CFG['epochs'] - CFG['warmup_epochs']
     )
     warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=CFG['lr_warmup_decay'], total_iters=CFG['warmup_epochs']
@@ -341,27 +268,12 @@ if __name__ == '__main__':
         optimizer, schedulers=[warmup_lr_scheduler, main_lr_scheduler], milestones=[CFG['warmup_epochs']]
     )
 
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2,
-    #                                                                         eta_min=1e-6, last_epoch=-1)
-
-    loss_tr = nn.CrossEntropyLoss(label_smoothing=0.1).to(device)  # MyCrossEntropyLoss().to(device)
+    loss_tr = nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
     loss_fn = nn.CrossEntropyLoss().to(device)
-    
-    # loss_tr = CosineSimilarity().to(device)
-    # loss_fn = CosineSimilarity().to(device)
-    
-    #loss_tr = BCEWithLogitsLoss().to(device)
-    #loss_fn = BCEWithLogitsLoss().to(device)
-
-    # loss_tr = nn.MSELoss().to(device)
-    # loss_fn = nn.MSELoss().to(device)
 
 
     d = pkl.load(open(CFG['pkl_pth'], 'rb')).data#.detach().cpu()
-    # label_dict = {}
-    # for i in range(1000):
-    #     label_dict[i] = 
-    d = F.normalize(d).to(device)#200*50
+    d = F.normalize(d).to(device)
 
     
     if CFG['ifval'] == True:
