@@ -1,5 +1,7 @@
 # Equiangular-Basis-Vectors
 
+EBVs pretrain on ImageNet-1K can be download at: https://github.com/aassxun/Equiangular-Basis-Vectors/releases/download/untagged-72ef569681e789dd1bb8/EBV_ResNet_dim1000_SGD_epoch605.pth
+
 ## Environment
 
 Python 3.8.11  
@@ -8,7 +10,7 @@ torchvision 0.12.0
 numpy 1.22.4
 timm 0.6.11
 
-## Generate EBV
+## Generate EBVs
 
     Please refer to /Generate_EBV/Generate_EBV.py
 
