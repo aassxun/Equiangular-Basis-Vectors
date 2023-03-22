@@ -2,7 +2,7 @@
 
 EBVs pretrain on ImageNet-1K can be download at: https://github.com/aassxun/Equiangular-Basis-Vectors/releases/download/untagged-72ef569681e789dd1bb8/EBV_ResNet_dim1000_SGD_epoch605.pth
 
-Data for the 10w classes classification task can be download from: https://github.com/aassxun/Equiangular-Basis-Vectors/releases/download/10w_classes/10w_classes.zip
+Data for the 10w classes classification task can be download from: https://github.com/aassxun/Equiangular-Basis-Vectors/releases/download/10w_classes/10w_classes.zip  
 It contains 120w images for training and 60w images for validation. (Resize to 224*224)
 
 ## Environment
