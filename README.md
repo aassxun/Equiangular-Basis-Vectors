@@ -11,7 +11,7 @@ It contains 120w images for training and 60w images for validation. (Resize to 2
 Python 3.8.11  
 Pytorch 1.11.0  
 torchvision 0.12.0  
-numpy 1.22.4
+numpy 1.22.4  
 timm 0.6.11
 
 ## Generate EBVs
